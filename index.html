@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Controle de Servo Motores - Arduino</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #eef2f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    .card {
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      width: 360px;
+      text-align: center;
+    }
+    h1 { color: #2c3e50; font-size: 1.4rem; margin-bottom: 20px; }
+    .btn-connect {
+      background-color: #27ae60;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      font-size: 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      width: 100%;
+      font-weight: bold;
+      transition: background 0.3s;
+    }
+    .btn-connect:hover { background-color: #219150; }
+    .control-group {
+      margin: 25px 0;
+      text-align: left;
+      background: #f8f9fa;
+      padding: 15px;
+      border-radius: 8px;
+    }
+    label { font-weight: 600; color: #34495e; display: block; margin-bottom: 8px; }
+    input[type=range] { width: 100%; cursor: pointer; }
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 10px;
+      font-size: 0.9rem;
+      color: #7f8c8d;
+    }
+    .led-indicator {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background-color: #bdc3c7;
+      transition: background-color 0.2s, box-shadow 0.2s;
+    }
+    .led-active {
+      background-color: #e74c3c;
+      box-shadow: 0 0 10px #e74c3c;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h1>Controle de Servos</h1>
+    <button class="btn-connect" id="btnConnect">Conectar ao Arduino</button>
+
+    <div class="control-group">
+      <label for="servo1">Servo 1: <span id="val1">90</span>°</label>
+      <input type="range" id="servo1" min="0" max="180" value="90">
+      <div class="status-bar">
+        <span>LED de Acionamento:</span>
+        <span id="led1" class="led-indicator"></span>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label for="servo2">Servo 2: <span id="val2">90</span>°</label>
+      <input type="range" id="servo2" min="0" max="180" value="90">
+      <div class="status-bar">
+        <span>LED de Acionamento:</span>
+        <span id="led2" class="led-indicator"></span>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let port;
+    let writer;
+    let isSending = false;
+    let pendingCommand = null;
+
+    const btnConnect = document.getElementById('btnConnect');
+    const servo1 = document.getElementById('servo1');
+    const servo2 = document.getElementById('servo2');
+    const val1 = document.getElementById('val1');
+    const val2 = document.getElementById('val2');
+    const led1 = document.getElementById('led1');
+    const led2 = document.getElementById('led2');
+
+    btnConnect.addEventListener('click', async () => {
+      if (!("serial" in navigator)) {
+        alert("A Web Serial API não é suportada por este navegador. Use o Google Chrome ou Microsoft Edge no computador.");
+        return;
+      }
+
+      try {
+        port = await navigator.serial.requestPort();
+        await port.open({ baudRate: 9600 });
+        writer = port.writable.getWriter();
+        btnConnect.textContent = "Arduino Conectado";
+        btnConnect.style.backgroundColor = "#2980b9";
+      } catch (err) {
+        alert("Erro ao conectar com a porta Serial: " + err.message);
+      }
+    });
+
+    async function sendCommand(command) {
+      if (!writer) return;
+
+      pendingCommand = command;
+      if (isSending) return;
+
+      isSending = true;
+
+      while (pendingCommand !== null) {
+        const cmdToSend = pendingCommand;
+        pendingCommand = null;
+        try {
+          const data = new TextEncoder().encode(cmdToSend + '\n');
+          await writer.write(data);
+        } catch (err) {
+          console.error("Erro na transmissão:", err);
+          break;
+        }
+      }
+
+      isSending = false;
+    }
+
+    // Controle do Servo 1
+    servo1.addEventListener('input', (e) => {
+      const angle = e.target.value;
+      val1.textContent = angle;
+      led1.classList.add('led-active');
+      sendCommand(`1:${angle}`);
+    });
+
+    servo1.addEventListener('change', () => {
+      setTimeout(() => led1.classList.remove('led-active'), 300);
+    });
+
+    // Controle do Servo 2
+    servo2.addEventListener('input', (e) => {
+      const angle = e.target.value;
+      val2.textContent = angle;
+      led2.classList.add('led-active');
+      sendCommand(`2:${angle}`);
+    });
+
+    servo2.addEventListener('change', () => {
+      setTimeout(() => led2.classList.remove('led-active'), 300);
+    });
+  </script>
+</body>
+</html>
